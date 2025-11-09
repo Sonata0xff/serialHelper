@@ -100,14 +100,14 @@ private:
 
     //recive config
     bool getHex;
-    bool atuoChange;
+    bool autoChange;
     char recDivideChar;
 
     //send config
     bool sendHex;
     char senDivideChar;
-    bool auoSend;
-    std::string msDelay;
+    bool autoSended;
+    int msDelay;
 public slots:
     void CheckPort();
     void StartSerialFunc();

@@ -153,6 +153,7 @@ serialHelper::serialHelper(QWidget *parent)
                      winConfig::serialSendConfigStartY + 50 * 2 + 5);
     this->spin->setLocale(QLocale::English);
     this->spin->resize(80, 20);
+    this->spin->setRange(0, 500);
 
     //palette init
     this->palette.setColor(QPalette::Window, Qt::lightGray);
@@ -251,7 +252,7 @@ void serialHelper::CheckPort()
 
 void serialHelper::SendFunc()
 {
-
+// send logic
 }
 
 void serialHelper::StartSerialFunc()
@@ -288,6 +289,16 @@ void serialHelper::StartSerialFunc()
         StopSerialFunc();
         return;
     }
+    //serial recive config
+    this->getHex = this->hexGetC->isChecked();
+    this->autoChange = this->rowAutoChangeC->isChecked();
+    this->recDivideChar = this->reciveDivideCharC->toPlainText().toStdString()[0];
+    //serial send config
+    this->sendHex = this->hexSendC->isChecked();
+    this->senDivideChar = this->sendDivideCharC->toPlainText().toStdString()[0];
+    this->autoSended = this->autoSendC->isChecked();
+    this->msDelay = this->spin->value();
+    //serial config
     BaudRate = this->portBandBitC->currentText().toStdString();
     DataSize = this->portDataBitC->currentText().toStdString();
     stopBit = this->portStopBitC->currentText().toStdString();
@@ -380,7 +391,7 @@ void ReciveThread::run()
         ReceiveProcessParam::statusTex_.unlock();
         if (status == "CONNECT") {
             if (param_.serialPort->waitForReadyRead(100)) {
-                //code about send the data, including send failed handle
+                //recive logic
 
             }
         }
