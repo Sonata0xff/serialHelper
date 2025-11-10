@@ -2,9 +2,15 @@
 #include "./ui_serialhelper.h"
 #include "windowConfig.h"
 //global param mutex, uesd for multi process
+namespace ProcessParam {
+QMutex StatusTex_;
+}
+//global recive param mutex, uesd for multi process
 namespace ReceiveProcessParam {
-QMutex statusTex_;
-QMutex textTex_;
+QMutex recTextTex_;
+} //global send param mutex, uesd for multi process
+namespace SendProcessParam {
+QMutex senTextTex_;
 }
 serialHelper::serialHelper(QWidget *parent)
     : QMainWindow(parent)
@@ -239,6 +245,31 @@ void serialHelper::FunctionInit()
     connect(this->sendClear.get(), &QPushButton::clicked, this, &serialHelper::SendSectorClear);
     this->sendOut->setEnabled(false);
     this->portStopPort->setEnabled(false);
+    //recive process init
+    ReciveParam rec_param = {
+        .serialStaus = this->statusRes,
+        .serialPort = &this->serialPort,
+        .text = this->reciver,
+        .getHex = &this->getHex,
+        .autoChange = &this->autoChange,
+        .recDivideChar = &this->recDivideChar
+    };
+    if (this->rec_handler != nullptr) delete this->rec_handler;
+    this->rec_handler = new ReciveThread(rec_param);
+    //send process init
+    SendParam sen_param = {
+        .serialStaus = this->statusRes,
+        .serialPort = &this->serialPort,
+        .text = this->sender,
+        .sendHex = &this->sendHex,
+        .senDivideChar = &this->senDivideChar,
+        .autoSended = &this->autoSended,
+        .msDelay = &this->msDelay
+    };
+    if (this->sen_handler != nullptr) delete this->sen_handler;
+    this->sen_handler = new SendThread(sen_param);
+    this->rec_handler->start();
+    this->sen_handler->start();
 }
 
 void serialHelper::CheckPort()
@@ -248,11 +279,6 @@ void serialHelper::CheckPort()
     for (auto& item : portList) {
         this->portNumberC->addItem(item.portName());
     }
-}
-
-void serialHelper::SendFunc()
-{
-// send logic
 }
 
 void serialHelper::StartSerialFunc()
@@ -284,7 +310,6 @@ void serialHelper::StartSerialFunc()
     QSerialPort::Parity checkBits;
     portName = this->portNumberC->currentText().toStdString();
     if (portName == "") {
-        //error message
         QMessageBox::critical(this, "error hint", "No serial port detected!!!");
         StopSerialFunc();
         return;
@@ -332,9 +357,9 @@ void serialHelper::StartSerialFunc()
         StopSerialFunc();
         return;
     }
-    ReceiveProcessParam::statusTex_.lock();
+    ProcessParam::StatusTex_.lock();
     ChangeStatus(CONNECT);
-    ReceiveProcessParam::statusTex_.unlock();
+    ProcessParam::StatusTex_.unlock();
 }
 void serialHelper::StopSerialFunc()
 {
@@ -362,38 +387,55 @@ void serialHelper::StopSerialFunc()
     if (this->serialPort.isOpen()) {
         this->serialPort.close();
     }
-    ReceiveProcessParam::statusTex_.lock();
+    ProcessParam::StatusTex_.lock();
     ChangeStatus(DISCONNECT);
-    ReceiveProcessParam::statusTex_.unlock();
+    ProcessParam::StatusTex_.unlock();
 }
 
 void serialHelper::ReciveSectorClear()
 {
+    ReceiveProcessParam::recTextTex_.lock();
     this->reciver->setText("");
+    ReceiveProcessParam::recTextTex_.unlock();
 }
 void serialHelper::SendSectorClear()
 {
+    SendProcessParam::senTextTex_.lock();
     this->sender->setText("");
+    SendProcessParam::senTextTex_.unlock();
 }
 
 serialHelper::~serialHelper()
 {
+    if (this->rec_handler != nullptr) {
+        this->rec_handler->requestInterruption();
+        this->rec_handler->wait();
+        delete this->rec_handler;
+        this->rec_handler = nullptr;
+    }
+    if (this->sen_handler != nullptr) {
+        this->sen_handler->requestInterruption();
+        this->sen_handler->wait();
+        delete this->sen_handler;
+        this->sen_handler = nullptr;
+    }
     delete ui;
 }
 
 ReciveThread::ReciveThread(ReciveParam param) : param_(param) {}
 void ReciveThread::run()
 {
-    std::string status = "";
-    while(!isInterruptionRequested()) {
-        ReceiveProcessParam::statusTex_.lock();
-        status = param_.serialStaus->text().toStdString();
-        ReceiveProcessParam::statusTex_.unlock();
-        if (status == "CONNECT") {
-            if (param_.serialPort->waitForReadyRead(100)) {
-                //recive logic
+// recive logic
+    while(!this->isInterruptionRequested()) {
+        msleep(1);
+    }
+}
 
-            }
-        }
+SendThread::SendThread(SendParam param) : param_(param) {}
+void SendThread::run()
+{
+// send logic
+    while(!this->isInterruptionRequested()) {
+        msleep(1);
     }
 }
