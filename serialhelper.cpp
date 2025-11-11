@@ -24,7 +24,6 @@ serialHelper::serialHelper(QWidget *parent)
     this->reciver->resize(winConfig::textBlockwidth, winConfig::textBlockHigth);
     this->reciver->move(winConfig::textBlockstartPosX,
                         winConfig::textBlockstartPosY);
-
     this->sender = std::make_shared<QTextEdit>(this);
     this->sender->resize(winConfig::textBlockwidth, winConfig::textBlockHigth);
     this->sender->move(winConfig::textBlockstartPosX,
@@ -243,6 +242,7 @@ void serialHelper::FunctionInit()
     connect(this->portStopPort.get(), &QPushButton::clicked, this, &serialHelper::StopSerialFunc);
     connect(this->reciveClear.get(), &QPushButton::clicked, this, &serialHelper::ReciveSectorClear);
     connect(this->sendClear.get(), &QPushButton::clicked, this, &serialHelper::SendSectorClear);
+    connect(this->sendOut.get(), &QPushButton::clicked, this, &serialHelper::SendFunc);
     this->sendOut->setEnabled(false);
     this->portStopPort->setEnabled(false);
     //recive process init
@@ -405,6 +405,12 @@ void serialHelper::SendSectorClear()
     SendProcessParam::senTextTex_.unlock();
 }
 
+void serialHelper::SendFunc()
+{
+
+
+}
+
 serialHelper::~serialHelper()
 {
     if (this->rec_handler != nullptr) {
@@ -425,9 +431,34 @@ serialHelper::~serialHelper()
 ReciveThread::ReciveThread(ReciveParam param) : param_(param) {}
 void ReciveThread::run()
 {
-// recive logic
+    std::string status;
+    bool recivedData = false;
+    QByteArray data = "";
     while(!this->isInterruptionRequested()) {
-        msleep(1);
+        ProcessParam::StatusTex_.lock();
+        status = this->param_.serialStaus->text().toStdString();
+        ProcessParam::StatusTex_.unlock();
+        if (status == CONNECT) {
+            if (this->param_.serialPort->waitForReadyRead(100)) recivedData = true;
+            else if (recivedData) {
+                recivedData = false;
+                data = this->param_.serialPort->readAll();
+                QString rec_str;
+                if (*this->param_.autoChange) this->param_.text->setWordWrapMode(QTextOption::WrapAnywhere);
+                else this->param_.text->setWordWrapMode(QTextOption::NoWrap);
+                if (*this->param_.getHex) {
+                    rec_str = "";
+                    QString tmp = data.toHex().toUpper();
+                    for (int i = 0; i < tmp.length(); i += 2) {
+                        rec_str += tmp.mid(i, 2);
+                        rec_str += (*this->param_.recDivideChar);
+                    }
+                } else rec_str = QString(data).append(this->param_.recDivideChar);
+                ReceiveProcessParam::recTextTex_.lock();
+                this->param_.text->insertPlainText(rec_str);
+                ReceiveProcessParam::recTextTex_.unlock();
+            }
+        } else msleep(1);
     }
 }
 
@@ -435,7 +466,15 @@ SendThread::SendThread(SendParam param) : param_(param) {}
 void SendThread::run()
 {
 // send logic
+    std::string status;
     while(!this->isInterruptionRequested()) {
-        msleep(1);
+        ProcessParam::StatusTex_.lock();
+        status = this->param_.serialStaus->text().toStdString();
+        ProcessParam::StatusTex_.unlock();
+        if (status == CONNECT) {
+            //send logic
+            continue;
+            //coding ...
+        } else msleep(1);
     }
 }

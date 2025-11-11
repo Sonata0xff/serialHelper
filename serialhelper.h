@@ -134,6 +134,7 @@ public slots:
     void StopSerialFunc();
     void ReciveSectorClear();
     void SendSectorClear();
+    void SendFunc();
 };
 //ReciveThread class
 class ReciveThread : public QThread {
