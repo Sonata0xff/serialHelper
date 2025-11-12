@@ -1,18 +1,7 @@
 #include "serialhelper.h"
 #include "./ui_serialhelper.h"
 #include "windowConfig.h"
-//global param mutex, uesd for multi process
-namespace ProcessParam {
-QMutex StatusTex_;
-}
-//global recive param mutex, uesd for multi process
-namespace ReceiveProcessParam {
-QMutex recTextTex_;
-} //global send param mutex, uesd for multi process
-namespace SendProcessParam {
-QMutex senTextTex_;
-QMutex startSendTex_;
-}
+
 serialHelper::serialHelper(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::serialHelper)
@@ -243,35 +232,8 @@ void serialHelper::FunctionInit()
     connect(this->portStopPort.get(), &QPushButton::clicked, this, &serialHelper::StopSerialFunc);
     connect(this->reciveClear.get(), &QPushButton::clicked, this, &serialHelper::ReciveSectorClear);
     connect(this->sendClear.get(), &QPushButton::clicked, this, &serialHelper::SendSectorClear);
-    connect(this->sendOut.get(), &QPushButton::clicked, this, &serialHelper::SendFunc);
     this->sendOut->setEnabled(false);
     this->portStopPort->setEnabled(false);
-    //recive process init
-    ReciveParam rec_param = {
-        .serialStaus = this->statusRes,
-        .serialPort = &this->serialPort,
-        .text = this->reciver,
-        .getHex = &this->getHex,
-        .autoChange = &this->autoChange,
-        .recDivideChar = &this->recDivideChar
-    };
-    if (this->rec_handler != nullptr) delete this->rec_handler;
-    this->rec_handler = new ReciveThread(rec_param);
-    //send process init
-    SendParam sen_param = {
-        .serialStaus = this->statusRes,
-        .serialPort = &this->serialPort,
-        .text = this->sender,
-        .sendHex = &this->sendHex,
-        .senDivideChar = &this->senDivideChar,
-        .autoSended = &this->autoSended,
-        .msDelay = &this->msDelay,
-        .startSend = &startSend
-    };
-    if (this->sen_handler != nullptr) delete this->sen_handler;
-    this->sen_handler = new SendThread(sen_param);
-    this->rec_handler->start();
-    this->sen_handler->start();
 }
 
 void serialHelper::CheckPort()
@@ -316,15 +278,6 @@ void serialHelper::StartSerialFunc()
         StopSerialFunc();
         return;
     }
-    //serial recive config
-    this->getHex = this->hexGetC->isChecked();
-    this->autoChange = this->rowAutoChangeC->isChecked();
-    this->recDivideChar = this->reciveDivideCharC->toPlainText().toStdString()[0];
-    //serial send config
-    this->sendHex = this->hexSendC->isChecked();
-    this->senDivideChar = this->sendDivideCharC->toPlainText().toStdString()[0];
-    this->autoSended = this->autoSendC->isChecked();
-    this->msDelay = this->spin->value();
     //serial config
     BaudRate = this->portBandBitC->currentText().toStdString();
     DataSize = this->portDataBitC->currentText().toStdString();
@@ -359,9 +312,7 @@ void serialHelper::StartSerialFunc()
         StopSerialFunc();
         return;
     }
-    ProcessParam::StatusTex_.lock();
     ChangeStatus(CONNECT);
-    ProcessParam::StatusTex_.unlock();
 }
 void serialHelper::StopSerialFunc()
 {
@@ -389,103 +340,21 @@ void serialHelper::StopSerialFunc()
     if (this->serialPort.isOpen()) {
         this->serialPort.close();
     }
-    ProcessParam::StatusTex_.lock();
     ChangeStatus(DISCONNECT);
-    ProcessParam::StatusTex_.unlock();
 }
 
 void serialHelper::ReciveSectorClear()
 {
-    ReceiveProcessParam::recTextTex_.lock();
-    this->reciver->setText("");
-    ReceiveProcessParam::recTextTex_.unlock();
+    this->reciver->setPlainText("");
 }
 void serialHelper::SendSectorClear()
 {
-    SendProcessParam::senTextTex_.lock();
-    this->sender->setText("");
-    SendProcessParam::senTextTex_.unlock();
+    this->sender->setPlainText("");
 }
 
-void serialHelper::SendFunc()
-{
-    SendProcessParam::startSendTex_.lock();
-    this->startSend = true;
-    SendProcessParam::startSendTex_.unlock();
-}
 
 serialHelper::~serialHelper()
 {
-    if (this->rec_handler != nullptr) {
-        this->rec_handler->requestInterruption();
-        this->rec_handler->wait();
-        delete this->rec_handler;
-        this->rec_handler = nullptr;
-    }
-    if (this->sen_handler != nullptr) {
-        this->sen_handler->requestInterruption();
-        this->sen_handler->wait();
-        delete this->sen_handler;
-        this->sen_handler = nullptr;
-    }
     delete ui;
 }
 
-ReciveThread::ReciveThread(ReciveParam param) : param_(param) {}
-void ReciveThread::run()
-{
-    std::string status;
-    bool recivedData = false;
-    QByteArray data = "";
-    while(!this->isInterruptionRequested()) {
-        ProcessParam::StatusTex_.lock();
-        status = this->param_.serialStaus->text().toStdString();
-        ProcessParam::StatusTex_.unlock();
-        if (status == CONNECT) {
-            if (this->param_.serialPort->waitForReadyRead(100)) recivedData = true;
-            else if (recivedData) {
-                recivedData = false;
-                data = this->param_.serialPort->readAll();
-                QString rec_str;
-                if (*this->param_.autoChange) this->param_.text->setWordWrapMode(QTextOption::WrapAnywhere);
-                else this->param_.text->setWordWrapMode(QTextOption::NoWrap);
-                if (*this->param_.getHex) {
-                    rec_str = "";
-                    QString tmp = data.toHex().toUpper();
-                    for (int i = 0; i < tmp.length(); i += 2) {
-                        rec_str += tmp.mid(i, 2);
-                        rec_str += (*this->param_.recDivideChar);
-                    }
-                } else rec_str = QString(data).append(this->param_.recDivideChar);
-                ReceiveProcessParam::recTextTex_.lock();
-                this->param_.text->insertPlainText(rec_str);
-                ReceiveProcessParam::recTextTex_.unlock();
-            }
-        } else msleep(1);
-    }
-}
-
-SendThread::SendThread(SendParam param) : param_(param) {}
-void SendThread::run()
-{
-// send logic
-    std::string status;
-    bool startSend;
-    while(!this->isInterruptionRequested()) {
-        ProcessParam::StatusTex_.lock();
-        status = this->param_.serialStaus->text().toStdString();
-        ProcessParam::StatusTex_.unlock();
-        if (status == CONNECT) {
-            SendProcessParam::startSendTex_.lock();
-            startSend = *this->param_.startSend;
-            SendProcessParam::startSendTex_.unlock();
-            if (startSend) {
-                if (*this->param_.autoSended) {
-                    //auto send logic
-                } else {
-                    //send once logic
-                }
-            } else msleep(1);
-        } else msleep(1);
-    }
-}

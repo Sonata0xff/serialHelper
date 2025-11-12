@@ -21,28 +21,6 @@ namespace Ui {
 class serialHelper;
 }
 QT_END_NAMESPACE
-//Recive thread param
-typedef struct {
-    std::shared_ptr<QLabel> serialStaus;
-    QSerialPort* serialPort;
-    std::shared_ptr<QTextEdit> text;
-    bool* getHex;
-    bool* autoChange;
-    char* recDivideChar;
-} ReciveParam;
-//Send thread param
-typedef struct {
-    std::shared_ptr<QLabel> serialStaus;
-    QSerialPort* serialPort;
-    std::shared_ptr<QTextEdit> text;
-    bool* sendHex;
-    char* senDivideChar;
-    bool* autoSended;
-    int* msDelay;
-    bool* startSend;
-} SendParam;
-class ReciveThread;
-class SendThread;
 class serialHelper : public QMainWindow
 {
     Q_OBJECT
@@ -113,50 +91,12 @@ private:
     std::string DataSize;
     std::string stopBit;
     std::string CheckBit;
-
-    //recive config
-    bool getHex;
-    bool autoChange;
-    char recDivideChar;
-
-    //send config
-    bool sendHex;
-    char senDivideChar;
-    bool autoSended;
-    int msDelay;
-    bool startSend;
-
-    //recive thread
-    ReciveThread* rec_handler = nullptr;
-    //send thread
-    SendThread* sen_handler = nullptr;
 public slots:
     void CheckPort();
     void StartSerialFunc();
     void StopSerialFunc();
     void ReciveSectorClear();
     void SendSectorClear();
-    void SendFunc();
-};
-//ReciveThread class
-class ReciveThread : public QThread {
-    Q_OBJECT
-public:
-    ReciveThread(ReciveParam param);
-private:
-    ReciveParam param_;
-protected:
-    void run() override;
-};
-//SendThread class
-class SendThread : public QThread {
-    Q_OBJECT
-public:
-    SendThread(SendParam param);
-private:
-    SendParam param_;
-protected:
-    void run() override;
 };
 
 #endif // SERIALHELPER_H
